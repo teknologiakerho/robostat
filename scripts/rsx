@@ -1,0 +1,62 @@
+#!/usr/bin/env python
+import click
+from sqlalchemy.orm import joinedload, subqueryload
+import robostat
+import robostat.db
+from robostat.cli import SQLAParamType
+from robostat.util import enumerate_rank
+
+def print_ranking(db, ranking):
+    res = ranking(db)
+
+    for rank, (team, score) in enumerate_rank(res, key=lambda x: x[1]):
+        click.echo("%2d. %-20s %s" % (rank, team.name, str(score)))
+
+def print_block(db, block):
+    events = block.events_query(db)\
+            .options(
+                    subqueryload(robostat.db.Event.teams_part)
+                    .joinedload(robostat.db.EventTeam.team, innerjoin=True),
+                    subqueryload(robostat.db.Event.judgings)
+                    .joinedload(robostat.db.EventJudging.judge, innerjoin=True),
+                    subqueryload(robostat.db.Event.judgings)
+                    .joinedload(robostat.db.EventJudging.scores, innerjoin=True)
+            )\
+            .all()
+
+    for e in events:
+        click.echo("%-4d" % e.id, nl=False)
+
+        for t in e.teams:
+            click.echo(" %-20s" % t.name, nl=False)
+
+        for j in e.judgings:
+            click.echo(" %s: " % j.judge.name, nl=False)
+
+            scores = {s.team_id:s for s in j.scores}
+            ss = [str(block.ruleset.decode(scores[tid].data)) if scores[tid].data is not None\
+                    else "(null)" for tid in e.team_ids]
+            click.echo(" - ".join(ss), nl=False)
+
+        click.echo()
+
+@click.command()
+@click.option("-v", "--verbose", count=True)
+@click.option("-d", "--db", type=SQLAParamType(), envvar="ROBOSTAT_DB", required=True)
+@click.option("-r", "--print-ranking", multiple=True)
+@click.option("-b", "--print-block", multiple=True)
+@click.argument("init", envvar="ROBOSTAT_INIT")
+def rsx(**kwargs):
+    ctx = {}
+    exec(open(kwargs["init"]).read(), ctx)
+
+    if kwargs["print_ranking"]:
+        for r in kwargs["print_ranking"]:
+            print_ranking(kwargs["db"], robostat.default_tournament.rankings[r])
+
+    if kwargs["print_block"]:
+        for b in kwargs["print_block"]:
+            print_block(kwargs["db"], robostat.default_tournament.blocks[b])
+
+if __name__ == "__main__":
+    rsx()

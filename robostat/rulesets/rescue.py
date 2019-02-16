@@ -98,8 +98,8 @@ class RescueObstacleCategory(RescueCategory):
     def score(self, val):
         return (val * self.max) // 2
 
-    def decode(self, data):
-        return int(data[0]), 1
+    def decode(self, src):
+        return src.read(1)[0]
 
     def encode(self, dest, value):
         dest.append(value)

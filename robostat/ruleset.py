@@ -1,3 +1,5 @@
+import io
+
 class Ruleset:
 
     # voi palauttaa mitä tahansa, mikä kuvaa suorituksen pisteitä (luku, dict, olio, ...)
@@ -24,23 +26,16 @@ class _CategoryScore:
 
     # laita __slots__ ja __cats__
 
-    def __init__(self, data=None):
-        if data is None:
+    def __init__(self, stream=None):
+        if stream is None:
             for k,v in self.__cats__:
                 setattr(self, k, v.default)
         else:
-            self.decode(data)
+            self.decode(stream)
 
-    # TODO muuta toi data streamiks (io.BytesIO)
-    def decode(self, data):
-        pos = 0
+    def decode(self, src):
         for k,v in self.__cats__:
-            val, l = v.decode(data[pos:])
-            setattr(self, k, val)
-            pos += l
-        
-        if pos != len(data):
-            raise CodecError("read %d bytes of %d" % (pos, len(data)))
+            setattr(self, k, v.decode(src))
 
     def encode(self, dest):
         for k,v in self.__cats__:
@@ -68,7 +63,15 @@ class CategoryRuleset(Ruleset):
         return self.score_type()
 
     def decode(self, data):
-        return self.score_type(data)
+        stream = io.BytesIO(data)
+        ret = self.score_type(stream)
+
+        tail = stream.read()
+        if tail != b"":
+            raise CodecError("stream not fully read, trailing bytes (%d): %s"\
+                    % (len(tail),tail.hex()))
+
+        return ret
 
     def encode(self, score):
         ret = bytearray()
@@ -85,9 +88,8 @@ class IntCategory:
         self._length = length
         self._signed = signed
 
-    def decode(self, data):
-        return int.from_bytes(data[:self._length], byteorder="big", signed=self._signed),\
-                self._length
+    def decode(self, src):
+        return int.from_bytes(src.read(self._length), byteorder="big", signed=self._signed)
 
     def encode(self, dest, value):
         dest.extend(value.to_bytes(self._length, byteorder="big", signed=self._signed))
@@ -107,15 +109,12 @@ class ListCategory:
     def default(self):
         return []
 
-    def decode(self, data):
+    def decode(self, src):
         ret = self.default
-        pos = 1
-        num = int(data[0])
+        num = src.read(1)[0]
 
         for _ in range(num):
-            val, l = self._cat.decode(data[pos:])
-            ret.append(val)
-            pos += l
+            ret.append(self._cat.decode(src))
 
         return ret
 

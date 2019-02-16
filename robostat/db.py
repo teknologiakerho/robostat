@@ -61,10 +61,12 @@ class Event(Base):
 
     @property
     def team(self):
+        assert len(self.teams) == 1
         return self.teams[0]
 
     @property
     def judge(self):
+        assert len(self.judges) == 1
         return self.judges[0]
 
     @property
@@ -98,6 +100,11 @@ class EventJudging(Base):
     event = relationship("Event")
     judge = relationship("Judge")
     scores = relationship("Score")
+
+    @property
+    def score(self):
+        assert len(self.scores) == 1
+        return self.scores[0]
 
     @hybrid_property
     def is_future(self):

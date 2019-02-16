@@ -103,8 +103,6 @@ def calc_xsumo_ranks(ruleset, scores, rank=XSumoRank):
 
 class XSumoRuleset(Ruleset):
 
-    num_teams = 2
-
     def create_score(self):
         return XSumoScore()
 

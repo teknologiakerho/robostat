@@ -129,13 +129,6 @@ class ListCategory:
         for v in value:
             self._cat.validate(v)
 
-# ottaa [team, ranking] listoja ja antaa [team, max_ranking] listan
-def max_ranking(*rankings):
-    max_ranks = {}
-
-    for ranking in rankings:
-        for t,r in ranking:
-            if not t in max_ranks or max_ranks[t] < r:
-                max_ranks[t] = r
-
-    return max_ranks
+# (db.Score) -> (team, ruleset_score)
+def decode_scores(ruleset, scores):
+    return (((s.team, ruleset.decode(s.data)) if s.has_score else None) for s in scores)

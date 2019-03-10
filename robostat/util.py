@@ -32,3 +32,6 @@ def enumerate_rank(it, start=1, key=lambda x: x):
             k = kk
             idx = cnt
         yield idx, i
+
+def noneflt(func):
+    return lambda it, **kwargs: func(filter(lambda x: x is not None, it), **kwargs)

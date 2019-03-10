@@ -1,6 +1,7 @@
 import itertools
 import functools
 import collections
+from robostat.util import noneflt
 from robostat.ruleset import Ruleset, ValidationError, cat_score, IntCategory, CategoryRuleset
 
 WEIGHTS = {
@@ -167,9 +168,12 @@ class _RescueScore:
     def __lt__(self, other):
         own_score = int(self)
         other_score = int(other)
+
         if own_score != other_score:
             return own_score < other_score
-        return self.time < other.time
+
+        # isompi aika on huonompi
+        return self.time > other.time
 
 # väliluokka että tähän voi tunkee field_injectorilla jotakin
 class RescueRuleset(CategoryRuleset):
@@ -178,9 +182,38 @@ class RescueRuleset(CategoryRuleset):
         super().__init__(score_type)
         self.difficulty = difficulty
 
-# TODO tähän vois tehä myös jonkun RescueRank luokan (vähän niiku xsumorank)
-# jossa on lista suorituksista tjsp
-# tai samantien max rank luokan koska sama idea pätee myös tanssiin
+# TODO: nää agregaattijutut vois kerätä johonki erilliseen yläluokkaan (AggregateRank)
+# koska ne pätee esim tanssiin jne melkein kaikkeen muuhun paitsi sumoon
+@functools.total_ordering
+class RescueRank:
+
+    def __init__(self, best, all):
+        self.best = best
+        self.all = all
+
+    def __str__(self):
+        return "%s [%s]" % (
+            str(self.best),
+            ", ".join(map(str, (r for r in self.all if r is not self.best)))
+        )
+
+    def __eq__(self, other):
+        return self.best == other.best
+
+    def __lt__(self, other):
+        return self.best < other.best
+
+    @property
+    def played_scores(self):
+        return [s for s in self.all if s is not None]
+
+    @classmethod
+    def from_scores(cls, scores):
+        best = cls.aggregate(scores)
+        return cls(best, scores)
+
+class RescueMaxRank(RescueRank):
+    aggregate = noneflt(max)
 
 def make_cat(c, w):
     if c in REPEAT:

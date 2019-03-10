@@ -63,6 +63,24 @@ class XSumoRank:
     def played(self):
         return self.wins + self.ties + self.losses
 
+    @classmethod
+    def from_scores(cls, scores):
+        ret = cls()
+
+        for s in scores:
+            if s is None:
+                ret.unplayed += 1
+            else:
+                ret.score += int(s)
+                if s.result == WIN:
+                    ret.wins += 1
+                elif s.result == TIE:
+                    ret.ties += 1
+                else:
+                    ret.losses += 1
+
+        return ret
+
 @functools.total_ordering
 class XSumoScoreRank(XSumoRank):
 
@@ -82,24 +100,6 @@ class XSumoWinsRank(XSumoRank):
         if self.wins != other.wins:
             return self.wins < other.wins
         return self.ties < other.ties
-
-def calc_xsumo_ranks(ruleset, scores, rank=XSumoRank):
-    ret = collections.defaultdict(rank)
-
-    for s in scores:
-        if s.data is None:
-            ret[s.team].unplayed += 1
-        else:
-            score = ruleset.decode(s.data)
-            ret[s.team].score += int(score)
-            if score.result == WIN:
-                ret[s.team].wins += 1
-            elif score.result == TIE:
-                ret[s.team].ties += 1
-            else:
-                ret[s.team].losses += 1
-
-    return ret
 
 class XSumoRuleset(Ruleset):
 

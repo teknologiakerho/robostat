@@ -1,5 +1,4 @@
 from pkgutil import extend_path
-from .util import udict
 from .tournament import Tournament
 
 # ks. https://docs.python.org/3/library/pkgutil.html

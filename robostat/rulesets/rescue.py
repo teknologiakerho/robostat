@@ -1,7 +1,7 @@
 import itertools
 import functools
-from robostat.ruleset import Ruleset, ValidationError, cat_score, ListCategory, IntCategory,\
-        CategoryRuleset
+import collections
+from robostat.ruleset import Ruleset, ValidationError, cat_score, IntCategory, CategoryRuleset
 
 WEIGHTS = {
         "viiva_punainen": 20,
@@ -110,10 +110,38 @@ class RescueObstacleCategory(RescueCategory):
         if value not in (FAIL, SUCCESS_1):
             raise ValidationError("Unexpected retry value: %d" % value)
 
-class RescueListCategory(RescueCategory, ListCategory):
+class RescueMultiObstacleScore:
+
+    __slots__ = "fail", "success1", "success2"
+
+    def __init__(self, fail=0, success1=0, success2=0):
+        self.fail = fail
+        self.success1 = success1
+        self.success2 = success2
+
+    def multiplier(self):
+        return self.success1 + self.success2/2
+
+class RescueMultiObstacleCategory(RescueCategory):
+
+    def __init__(self, max):
+        self.max = max
+
+    @property
+    def default(self):
+        return RescueMultiObstacleScore()
 
     def score(self, val):
-        return sum(self._cat.score(v) for v in val)
+        return int(self.max * val.multiplier())
+
+    def decode(self, src):
+        return RescueMultiObstacleScore(*src.read(3))
+
+    def encode(self, dest, value):
+        dest.extend((value.fail, value.success1, value.success2))
+
+    def validate(self, value):
+        pass
 
 @functools.total_ordering
 class _RescueScore:
@@ -145,17 +173,20 @@ class _RescueScore:
 
 # väliluokka että tähän voi tunkee field_injectorilla jotakin
 class RescueRuleset(CategoryRuleset):
-    pass
+
+    def __init__(self, score_type, difficulty):
+        super().__init__(score_type)
+        self.difficulty = difficulty
 
 # TODO tähän vois tehä myös jonkun RescueRank luokan (vähän niiku xsumorank)
 # jossa on lista suorituksista tjsp
 # tai samantien max rank luokan koska sama idea pätee myös tanssiin
 
 def make_cat(c, w):
-    ret = RescueObstacleCategory(w)
     if c in REPEAT:
-        ret = RescueListCategory(ret)
-    return ret
+        return RescueMultiObstacleCategory(w)
+    else:
+        return RescueObstacleCategory(w)
 
 TIME_CAT = IntCategory(signed=False)
 CATS = dict((c, make_cat(c, w)) for c,w in WEIGHTS.items())
@@ -167,6 +198,6 @@ Rescue1Score = cat_score("Rescue1Score", _get_cats(R1_VIIVA + R1_UHRI), bases=[_
 Rescue2Score = cat_score("Rescue2Score", _get_cats(R2_VIIVA + R2_UHRI), bases=[_RescueScore])
 Rescue3Score = cat_score("Rescue3Score", _get_cats(R3_VIIVA + R3_UHRI), bases=[_RescueScore])
 
-rescue1_ruleset = RescueRuleset(Rescue1Score)
-rescue2_ruleset = RescueRuleset(Rescue2Score)
-rescue3_ruleset = RescueRuleset(Rescue3Score)
+rescue1_ruleset = RescueRuleset(Rescue1Score, difficulty=1)
+rescue2_ruleset = RescueRuleset(Rescue2Score, difficulty=2)
+rescue3_ruleset = RescueRuleset(Rescue3Score, difficulty=3)

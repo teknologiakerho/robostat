@@ -20,8 +20,15 @@ class lazy:
 
 def enumerate_rank(it, start=1, key=lambda x: x):
     idx, cnt = start, start
-    it = iter(it)
-    x = next(it)
+
+    try:
+        it = iter(it)
+        x = next(it)
+    except StopIteration:
+        # python 3.7 muutos:
+        # https://www.python.org/dev/peps/pep-0479/
+        return
+
     k = key(x)
     yield idx, x
 

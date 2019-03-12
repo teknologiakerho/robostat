@@ -204,8 +204,6 @@ class XSRuleset(XSumoRuleset):
         for r1, r2 in zip(s1.rounds, s2.rounds):
             self._validate_rounds(r1, r2)
 
-xsumo_basic_ruleset = XSRuleset()
-
 # Robomestarit XSumo
 
 class XMRoundScore:
@@ -237,8 +235,6 @@ class XMRuleset(XSumoRuleset):
 
     def _data_length(self, score):
         return sum(len(r.pseudorounds) for r in score.rounds) + len(score.rounds)
-
-xsumo_master_ruleset = XMRuleset()
 
 # Innokas-Robomestarit XSumo (Robomestarit + viivanseuraus)
 
@@ -294,5 +290,3 @@ class XIRuleset(XSumoRuleset):
 
             if (not (r1.first or r2.first)) and (int(r1) != 0 or int(r2) != 0):
                 raise ValidationError("Neither marked first in non zero-zero round")
-
-xsumo_innokas_ruleset = XIRuleset()

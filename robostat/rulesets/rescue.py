@@ -155,9 +155,12 @@ class RescueScore:
     def time_sec(self):
         return self.time % 60
 
+    @property
+    def score_categories(self):
+        return filter(lambda x: isinstance(x[1], RescueCategory), self.__cats__)
+
     def __int__(self):
-        return sum(v.score(getattr(self, k)) for k,v in self.__cats__\
-                if isinstance(v, RescueCategory))
+        return sum(v.score(getattr(self, k)) for k,v in self.score_categories)
 
     def __str__(self):
         return "%dp, %02d:%02d" % (int(self), self.time_min, self.time_sec)
@@ -174,13 +177,6 @@ class RescueScore:
 
         # isompi aika on huonompi
         return self.time > other.time
-
-# väliluokka että tähän voi tunkee field_injectorilla jotakin
-class RescueRuleset(CategoryRuleset):
-
-    def __init__(self, score_type, difficulty):
-        super().__init__(score_type)
-        self.difficulty = difficulty
 
 # TODO: nää agregaattijutut vois kerätä johonki erilliseen yläluokkaan (AggregateRank)
 # koska ne pätee esim tanssiin jne melkein kaikkeen muuhun paitsi sumoon
@@ -236,6 +232,14 @@ Rescue1Score = cat_score("Rescue1Score", _get_cats(R1_VIIVA + R1_UHRI), bases=[R
 Rescue2Score = cat_score("Rescue2Score", _get_cats(R2_VIIVA + R2_UHRI), bases=[RescueScore])
 Rescue3Score = cat_score("Rescue3Score", _get_cats(R3_VIIVA + R3_UHRI), bases=[RescueScore])
 
-rescue1_ruleset = RescueRuleset(Rescue1Score, difficulty=1)
-rescue2_ruleset = RescueRuleset(Rescue2Score, difficulty=2)
-rescue3_ruleset = RescueRuleset(Rescue3Score, difficulty=3)
+class RescueRuleset(CategoryRuleset):
+
+    def __init__(self, score_type, difficulty, max_time=None):
+        super().__init__(score_type)
+        self.difficulty = difficulty
+        self.max_time = max_time
+
+    @classmethod
+    def by_difficulty(cls, difficulty, max_time=None):
+        score = [Rescue1Score, Rescue2Score, Rescue3Score][difficulty-1]
+        return cls(score_type=score, difficulty=difficulty, max_time=max_time)

@@ -184,6 +184,7 @@ class RescueRuleset(CategoryRuleset):
 
 # TODO: nää agregaattijutut vois kerätä johonki erilliseen yläluokkaan (AggregateRank)
 # koska ne pätee esim tanssiin jne melkein kaikkeen muuhun paitsi sumoon
+# TODO: tää nimeäminen ei ehkä oo paras jos tekee esim RescueSumRank
 @functools.total_ordering
 class RescueRank:
 
@@ -194,7 +195,7 @@ class RescueRank:
     def __str__(self):
         return "%s [%s]" % (
             str(self.best),
-            ", ".join(map(str, (r for r in self.all if r is not self.best)))
+            ", ".join(map(str, self.other_scores))
         )
 
     def __eq__(self, other):
@@ -202,6 +203,10 @@ class RescueRank:
 
     def __lt__(self, other):
         return self.best < other.best
+
+    @property
+    def other_scores(self):
+        return [s for s in self.all if s is not self.best]
 
     @property
     def played_scores(self):

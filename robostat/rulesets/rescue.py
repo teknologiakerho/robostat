@@ -145,7 +145,7 @@ class RescueMultiObstacleCategory(RescueCategory):
         pass
 
 @functools.total_ordering
-class _RescueScore:
+class RescueScore:
 
     @property
     def time_min(self):
@@ -227,9 +227,9 @@ CATS = dict((c, make_cat(c, w)) for c,w in WEIGHTS.items())
 def _get_cats(l):
     return [("time", TIME_CAT), *((c, CATS[c]) for c in l)]
 
-Rescue1Score = cat_score("Rescue1Score", _get_cats(R1_VIIVA + R1_UHRI), bases=[_RescueScore])
-Rescue2Score = cat_score("Rescue2Score", _get_cats(R2_VIIVA + R2_UHRI), bases=[_RescueScore])
-Rescue3Score = cat_score("Rescue3Score", _get_cats(R3_VIIVA + R3_UHRI), bases=[_RescueScore])
+Rescue1Score = cat_score("Rescue1Score", _get_cats(R1_VIIVA + R1_UHRI), bases=[RescueScore])
+Rescue2Score = cat_score("Rescue2Score", _get_cats(R2_VIIVA + R2_UHRI), bases=[RescueScore])
+Rescue3Score = cat_score("Rescue3Score", _get_cats(R3_VIIVA + R3_UHRI), bases=[RescueScore])
 
 rescue1_ruleset = RescueRuleset(Rescue1Score, difficulty=1)
 rescue2_ruleset = RescueRuleset(Rescue2Score, difficulty=2)

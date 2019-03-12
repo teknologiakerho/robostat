@@ -131,4 +131,4 @@ class ListCategory:
 
 # (db.Score) -> (team, ruleset_score)
 def decode_scores(ruleset, scores):
-    return (((s.team, ruleset.decode(s.data)) if s.has_score else None) for s in scores)
+    return ((s.team, (ruleset.decode(s.data) if s.has_score else None)) for s in scores)

@@ -12,11 +12,9 @@ Base = declarative_base()
 
 class Team(Base):
     __tablename__ = "teams"
-    __table_args__ = ( sa.UniqueConstraint("competition_id", "name"), )
 
     id = sa.Column(sa.Integer, primary_key=True)
-    competition_id = sa.Column(sa.Text, nullable=False)
-    name = sa.Column(sa.Text, nullable=False)
+    name = sa.Column(sa.Text, nullable=False, unique=True)
 
 class Judge(Base):
     __tablename__ = "judges"

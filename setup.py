@@ -10,7 +10,7 @@ setup(
             "sqlalchemy"
         ],
         extras_require = {
-            "cli": ["click"]
+            "cli": ["click", "pttt"]
         },
         scripts = [
             "scripts/rsx"

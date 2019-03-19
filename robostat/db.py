@@ -1,4 +1,5 @@
 import contextlib
+import operator
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 from sqlalchemy.event import listen, listens_for
@@ -61,6 +62,10 @@ class Event(Base):
     def team(self):
         assert len(self.teams) == 1
         return self.teams[0]
+
+    @property
+    def teams_sorted(self):
+        return sorted(self.teams, key=operator.attrgetter("name"))
 
     @property
     def judge(self):

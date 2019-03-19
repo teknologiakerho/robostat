@@ -108,7 +108,7 @@ class RescueObstacleCategory(RescueCategory):
     def validate(self, value):
         if value == SUCCESS_2 and not self.retryable:
             raise ValidationError("Unexpected SUCCESS_2 in non-retryable category")
-        if value not in (FAIL, SUCCESS_1):
+        if value not in (FAIL, SUCCESS_1, SUCCESS_2):
             raise ValidationError("Unexpected retry value: %d" % value)
 
 class RescueMultiObstacleScore:

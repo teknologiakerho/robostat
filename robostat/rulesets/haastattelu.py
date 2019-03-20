@@ -10,3 +10,6 @@ class HaastatteluRuleset:
 
     def encode(self, score):
         return bytes([int(score)])
+
+    def validate(self, score):
+        pass

@@ -63,7 +63,7 @@ def decode_block_scores(db, *blocks):
             .options(joinedload(robostat.db.Score.team, innerjoin=True))\
             .all()
 
-    return [((s.team, bs[s.event.block_id].ruleset.decode(s.data)) if s.has_score else None)\
+    return [((s.team, bs[s.event.block_id].ruleset.decode(s.data) if s.has_score else None))\
             for s in scores]
 
 class Ranking:

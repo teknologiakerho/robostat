@@ -83,7 +83,7 @@ class EventTeam(Base):
 
     event_id = sa.Column(sa.Integer, sa.ForeignKey("events.id", ondelete="CASCADE"),
             nullable=False, index=True)
-    team_id = sa.Column(sa.Integer, sa.ForeignKey("teams.id", ondelete="CASCADE"),
+    team_id = sa.Column(sa.Integer, sa.ForeignKey("teams.id", ondelete="RESTRICT"),
             nullable=False, index=True)
 
     event = relationship("Event")
@@ -96,7 +96,7 @@ class EventJudging(Base):
 
     event_id = sa.Column(sa.Integer, sa.ForeignKey("events.id", ondelete="CASCADE"),
             nullable=False, index=True)
-    judge_id = sa.Column(sa.Integer, sa.ForeignKey("judges.id", ondelete="CASCADE"),
+    judge_id = sa.Column(sa.Integer, sa.ForeignKey("judges.id", ondelete="RESTRICT"),
             nullable=False, index=True)
     ts = sa.Column(sa.Integer)
 
@@ -161,6 +161,15 @@ listen(Base.metadata, "after_create", sa.DDL("""
         SELECT new.event_id, team_id, new.judge_id
         FROM event_teams
         WHERE event_teams.event_id=new.event_id;
+    END;
+"""))
+
+listen(Base.metadata, "after_create", sa.DDL("""
+    CREATE TRIGGER t_disallow_score_delete
+    AFTER DELETE ON scores
+    WHEN EXISTS(SELECT 1 FROM events WHERE id=OLD.event_id)
+    BEGIN
+        SELECT RAISE(ABORT, "Can't remove score whose event exists");
     END;
 """))
 

@@ -71,6 +71,9 @@ class DanceCategory:
         dest.append(value)
 
     def validate(self, value):
+        if type(value) != int:
+            raise TypeError("Not a valid dance score: %s" % value)
+
         if value < 0:
             raise ValidationError("Negative score: %d" % value)
         if value > self.max:

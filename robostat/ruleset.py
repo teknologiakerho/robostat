@@ -33,6 +33,12 @@ class _CategoryScore:
         else:
             self.decode(stream)
 
+    def __repr__(self):
+        return "%s:[%s]" % (
+                self.__class__.__name__,
+                ", ".join("%s=%s" % (k, getattr(self, k)) for k,v in self.__cats__)
+        )
+
     def decode(self, src):
         for k,v in self.__cats__:
             setattr(self, k, v.decode(src))

@@ -1,6 +1,7 @@
 import itertools
 import functools
 import collections
+from enum import Enum
 from robostat.util import noneflt
 from robostat.ruleset import Ruleset, ValidationError, cat_score, IntCategory, CategoryRuleset
 
@@ -77,9 +78,30 @@ R3_UHRI = [
         "uhri_peruutus"
 ]
 
-FAIL = 0
-SUCCESS_2 = 1
-SUCCESS_1 = 2
+class RescueResult(Enum):
+    FAIL = "F"
+    SUCCESS_2 = "2"
+    SUCCESS_1 = "1"
+
+    def __init__(self, char):
+        self.char = char
+
+    def __str__(self):
+        return self.char
+
+    @property
+    def opcode(self):
+        return ord(self.char)
+
+    @staticmethod
+    def by_opcode(opcode):
+        return RescueResult(chr(opcode))
+
+SCORING_MULTIPLIERS = {
+    "F": 0,
+    "2": 0.5,
+    "1": 1
+}
 
 class RescueCategory:
     pass
@@ -90,26 +112,27 @@ class RescueCategory:
 # * 0 pistettä muuten
 class RescueObstacleCategory(RescueCategory):
 
-    default = FAIL
+    default = RescueResult("F")
 
     def __init__(self, max, retryable=True):
         self.max = max
         self.retryable = retryable
 
     def score(self, val):
-        return (val * self.max) // 2
+        return int(self.max * SCORING_MULTIPLIERS[str(val)])
 
     def decode(self, src):
-        return src.read(1)[0]
+        return RescueResult.by_opcode(src.read(1)[0])
 
     def encode(self, dest, value):
-        dest.append(value)
+        dest.append(value.opcode)
 
     def validate(self, value):
-        if value == SUCCESS_2 and not self.retryable:
+        if value not in (RescueResult.FAIL, RescueResult.SUCCESS_1, RescueResult.SUCCESS_2):
+            raise TypeError("Not a result: %s" % value)
+
+        if value == RescueResult.SUCCESS_2 and not self.retryable:
             raise ValidationError("Unexpected SUCCESS_2 in non-retryable category")
-        if value not in (FAIL, SUCCESS_1, SUCCESS_2):
-            raise ValidationError("Unexpected retry value: %d" % value)
 
 class RescueMultiObstacleScore:
 
@@ -120,8 +143,20 @@ class RescueMultiObstacleScore:
         self.success1 = success1
         self.success2 = success2
 
+    def __str__(self):
+        return "%d/%d/%d" % (self.success1, self.success2, self.fail)
+
+    def __repr__(self):
+        return str(self)
+
+    def __eq__(self, other):
+        return self.fail == other.fail\
+                and self.success1 == other.success1\
+                and self.success2 == other.success2
+
+    @property
     def multiplier(self):
-        return self.success1 + self.success2/2
+        return self.success1*SCORING_MULTIPLIERS["1"] + self.success2*SCORING_MULTIPLIERS["2"]
 
 class RescueMultiObstacleCategory(RescueCategory):
 
@@ -133,7 +168,7 @@ class RescueMultiObstacleCategory(RescueCategory):
         return RescueMultiObstacleScore()
 
     def score(self, val):
-        return int(self.max * val.multiplier())
+        return int(self.max * val.multiplier)
 
     def decode(self, src):
         return RescueMultiObstacleScore(*src.read(3))
@@ -142,7 +177,11 @@ class RescueMultiObstacleCategory(RescueCategory):
         dest.extend((value.fail, value.success1, value.success2))
 
     def validate(self, value):
-        pass
+        if not all(type(x) == int for x in (value.fail, value.success1, value.success2)):
+            raise TypeError("Not a multi result: %s" % value)
+
+        if min(value.fail, value.success1, value.success2) < 0:
+            raise ValidationError("Negative count")
 
 @functools.total_ordering
 class RescueScore:
@@ -194,10 +233,23 @@ class RescueRank:
             ", ".join(map(str, self.other_scores))
         )
 
+    def __repr__(self):
+        return str(self)
+
     def __eq__(self, other):
+        if self.best is None:
+            return other.best is None
+        if other.best is None:
+            return self.best is None
+
         return self.best == other.best
 
     def __lt__(self, other):
+        if self.best is None:
+            return other.best is not None
+        if other.best is None:
+            return False
+
         return self.best < other.best
 
     @property
@@ -214,7 +266,7 @@ class RescueRank:
         return cls(best, scores)
 
 class RescueMaxRank(RescueRank):
-    aggregate = noneflt(max)
+    aggregate = noneflt(functools.partial(max, default=None))
 
 def make_cat(c, w):
     if c in REPEAT:
@@ -238,6 +290,11 @@ class RescueRuleset(CategoryRuleset):
         super().__init__(score_type)
         self.difficulty = difficulty
         self.max_time = max_time
+
+    def validate(self, score):
+        super().validate(score)
+        if score.time > self.max_time:
+            raise ValidationError("Time exceeds max time (%d > %d)" % (score.time, self.max_time))
 
     @classmethod
     def by_difficulty(cls, difficulty, max_time=None):

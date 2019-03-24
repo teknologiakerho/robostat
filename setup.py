@@ -10,6 +10,7 @@ setup(
             "sqlalchemy"
         ],
         extras_require = {
+            "dev": ["pytest"],
             "cli": ["click", "pttt"]
         },
         scripts = [

@@ -11,9 +11,11 @@ setup(
         ],
         extras_require = {
             "dev": ["pytest"],
-            "cli": ["click", "pttt"]
+            "cli": ["click", "pttt", "tabulate"]
         },
-        scripts = [
-            "scripts/rsx"
-        ]
+        entry_points = {
+            "console_scripts": [
+                "rsx = robostat.rsx.main:main"
+            ]
+        }
 )

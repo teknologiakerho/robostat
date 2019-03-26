@@ -80,8 +80,8 @@ R3_UHRI = [
 
 class RescueResult(Enum):
     FAIL = "F"
-    SUCCESS_2 = "2"
-    SUCCESS_1 = "1"
+    SUCCESS_2 = "H"
+    SUCCESS_1 = "S"
 
     def __init__(self, char):
         self.char = char
@@ -99,8 +99,8 @@ class RescueResult(Enum):
 
 SCORING_MULTIPLIERS = {
     "F": 0,
-    "2": 0.5,
-    "1": 1
+    "H": 0.5,
+    "S": 1
 }
 
 class RescueCategory:
@@ -156,7 +156,7 @@ class RescueMultiObstacleScore:
 
     @property
     def multiplier(self):
-        return self.success1*SCORING_MULTIPLIERS["1"] + self.success2*SCORING_MULTIPLIERS["2"]
+        return self.success1*SCORING_MULTIPLIERS["S"] + self.success2*SCORING_MULTIPLIERS["H"]
 
 class RescueMultiObstacleCategory(RescueCategory):
 

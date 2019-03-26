@@ -123,7 +123,7 @@ def test_tournament_double_rescue(db, tournament):
         assert all(len(e.scores) == 1 for e in evs)
 
     ruleset = tournament.blocks["rescue1.a"].ruleset
-    s1 = R(ruleset, {"viiva_punainen": "1", "time": 200})
+    s1 = R(ruleset, {"viiva_punainen": "S", "time": 200})
     events_a[0].scores[0].data = ruleset.encode(s1)
 
     db.commit()
@@ -132,7 +132,7 @@ def test_tournament_double_rescue(db, tournament):
     assert ranks[0][1].best.time == 200
     assert ranks[1][1].best is None
 
-    s2 = R(ruleset, {"viiva_punainen": "1", "time": 100})
+    s2 = R(ruleset, {"viiva_punainen": "S", "time": 100})
     events_b[0].scores[0].data = ruleset.encode(s2)
 
     db.commit()

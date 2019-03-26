@@ -16,7 +16,7 @@ def ruleset(request):
 def get_valid_scores(ruleset):
     cats = list(ruleset.create_score().score_categories)
     nz_values = itertools.cycle(range(1, 10))
-    result_values = itertools.cycle(map(rescue.RescueResult, ("F", "1", "2")))
+    result_values = itertools.cycle(map(rescue.RescueResult, ("F", "S", "H")))
     time_values = itertools.cycle(range(600))
 
     for select_cats in combinations_range(cats):
@@ -70,16 +70,16 @@ def test_codec(ruleset):
 @pytest.mark.parametrize("score,exp_score,exp_time", [
     ({}, 0, 0),
     ({"time": 100}, 0, 100),
-    ({"viiva_punainen": "1"}, 20, 0),
-    ({"viiva_punainen": "2"}, 10, 0),
+    ({"viiva_punainen": "S"}, 20, 0),
+    ({"viiva_punainen": "H"}, 10, 0),
     ({"viiva_punainen": "F"}, 0, 0),
     ({"viiva_palat": (1, 2, 3)}, 20+15, 0),
     ({
-        "viiva_punainen": "1",
+        "viiva_punainen": "S",
         "viiva_palat": (0, 1, 0),
         "viiva_kippi": (1, 0, 2),
-        "uhri_alue": "1",
-        "uhri_tunnistus": "2",
+        "uhri_alue": "S",
+        "uhri_tunnistus": "H",
         "time": 123
     }, (20+10+10+10+5), 123)
 ])
@@ -91,15 +91,15 @@ def test_score_calculation(ruleset, score, exp_score, exp_time):
 def test_ranking(ruleset):
     scores = {
         "A": (
-            R(ruleset, {"viiva_punainen": "1", "viiva_palat": (1, 2, 3), "time": 100}),
+            R(ruleset, {"viiva_punainen": "S", "viiva_palat": (1, 2, 3), "time": 100}),
             None
         ),
         "B": (
-            R(ruleset, {"viiva_punainen": "1", "time": 200}),
-            R(ruleset, {"viiva_punainen": "1", "viiva_palat": (1, 2, 3), "time": 300})
+            R(ruleset, {"viiva_punainen": "S", "time": 200}),
+            R(ruleset, {"viiva_punainen": "S", "viiva_palat": (1, 2, 3), "time": 300})
         ),
         "C": (
-            R(ruleset, {"viiva_punainen": "1", "time": 100}),
+            R(ruleset, {"viiva_punainen": "S", "time": 100}),
             R(ruleset, {"time": 0})
         ),
         "D": (

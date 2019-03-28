@@ -26,11 +26,7 @@ class BlockCrud(Crud):
 class TeamCrud(Crud):
 
     def del_(self, srch):
-        team = query_selectors(self.db, model.Team, [srch]).first()
-
-        if team is None:
-            raise RsxError("No such team: '%s'" % srch)
-
+        team = self._query_or_err(srch)
         self.db.delete(team)
         
         try:
@@ -41,6 +37,32 @@ class TeamCrud(Crud):
             raise RsxError("Cannot delete team with events")
 
         click.echo("%s %s" % (del_sym, nameid(team)))
+
+    def rename(self, srch, name):
+        team = self._query_or_err(srch)
+        old_nameid = nameid(team)
+        team.name = name
+
+        try:
+            self.db.commit()
+        except IntegrityError as e:
+            # todennäkösesti nimi on jo jollakin toisella joukkueella
+            self.db.rollback()
+            raise RsxError("Rename failed: %s" % str(e))
+
+        click.echo("%s %s %s" %(
+            old_nameid,
+            click.style("=>", bold=True),
+            nameid(team)
+        ))
+
+    def _query_or_err(self, srch):
+        ret = query_selectors(self.db, model.Team, [srch]).first()
+
+        if ret is None:
+            raise RsxError("No such team: '%s'" % srch)
+
+        return ret
 
 cruds = {
     "block": BlockCrud,
@@ -59,6 +81,15 @@ def del_command(**kwargs):
     deleter = cruds[kwargs["what"]]
     crud = deleter(kwargs["db"])
     crud.del_(kwargs["param"])
+
+@click.command("rename")
+@verbose_option
+@db_option
+@click.argument("what", type=click.Choice(get_cruds("rename")))
+@click.argument("from")
+@click.argument("to")
+def rename_command(**kwargs):
+    cruds[kwargs["what"]](kwargs["db"]).rename(kwargs["from"], kwargs["to"])
 
 @click.command("shadow")
 @verbose_option

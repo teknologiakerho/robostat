@@ -1,9 +1,16 @@
 import functools
 import collections
 from sqlalchemy.orm import joinedload
-import robostat.db
+from sqlalchemy.orm.query import Query
+import robostat.db as model
 from robostat.util import udict
 from robostat.ruleset import decode_scores
+
+_shadow_subquery = ~Query(model.EventTeam)\
+        .join(model.EventTeam.team)\
+        .filter(model.EventTeam.event_id==model.Event.id)\
+        .filter(model.Team.is_shadow)\
+        .exists()
 
 class Tournament:
 
@@ -33,34 +40,56 @@ class Block:
         self.ruleset = ruleset
         self.name = name or id
 
-    def events_query(self, db):
-        return db.query(robostat.db.Event).filter(robostat.db.Event.block_id == self.id)
+    def events_query(self, db, hide_shadows=False):
+        query = db.query(model.Event).filter_by(block_id=self.id)
 
-    def scores_query(self, db):
-        return db.query(robostat.db.Score)\
-                .join(robostat.db.Score.event)\
-                .filter(robostat.db.Event.block_id == self.id)
+        if hide_shadows:
+            query = hide_query_shadows(query)
+
+        return query
+
+    def scores_query(self, db, hide_shadows=False):
+        query = db.query(model.Score)\
+                .join(model.Score.event)\
+                .filter(model.Event.block_id == self.id)
+
+        if hide_shadows:
+            # Tässä pitää filtteröidä myös pois ne scoret jotka on "pelattu" shadoweja
+            # vastaan joten pitää tehä koko subquery.
+            # Jos jokasessa eventissä olis vaan yks joukkue niin riittäs
+            # joinata teameihin kun team.is_shadow=0.
+            query = hide_query_shadows(query)
+
+        return query
 
     def decode_scores(self, db):
         scores = self.scores_query(db)\
-                .options(joinedload(robostat.db.Score.team, innerjoin=True))\
+                .options(joinedload(model.Score.team, innerjoin=True))\
                 .all()
 
         return list(decode_scores(self.ruleset, scores))
 
-def scores_query(db, *blocks):
-    return db.query(robostat.db.Score)\
-            .join(robostat.db.Score.event)\
-            .filter(robostat.db.Event.block_id.in_([
+def hide_query_shadows(query):
+    return query.filter(_shadow_subquery)
+
+def scores_query(db, *blocks, hide_shadows=False):
+    query = db.query(model.Score)\
+            .join(model.Score.event)\
+            .filter(model.Event.block_id.in_([
                 (b.id if isinstance(b, Block) else b) for b in blocks
             ]))
 
-def decode_block_scores(db, *blocks):
+    if hide_shadows:
+        query = hide_query_shadows(query)
+
+    return query
+
+def decode_block_scores(db, *blocks, hide_shadows=False):
     bs = dict((b.id, b) for b in blocks)
 
     # Tää vois olla myös selectinload tjsp
-    scores = scores_query(db, *blocks)\
-            .options(joinedload(robostat.db.Score.team, innerjoin=True))\
+    scores = scores_query(db, *blocks, hide_shadows=hide_shadows)\
+            .options(joinedload(model.Score.team, innerjoin=True))\
             .all()
 
     return [((s.team, bs[s.event.block_id].ruleset.decode(s.data) if s.has_score else None))\

@@ -23,6 +23,7 @@ def insert_test_data(db):
         model.Team(id=1, name="Joukkue A"),
         model.Team(id=2, name="Joukkue B"),
         model.Team(id=3, name="Joukkue C"),
+        model.Team(id=4, name="Joukkue D", is_shadow=1),
 
         model.Judge(id=1, name="Tuomari A"),
         model.Judge(id=2, name="Tuomari B")
@@ -30,9 +31,9 @@ def insert_test_data(db):
 
     db.commit()
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def db():
-    engine = create_engine("sqlite://")
+    engine = create_engine("sqlite://", echo="debug")
     model.Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine)
     ret = session()
@@ -207,3 +208,13 @@ def test_block_conflict(db):
 
     with pytest.raises(IntegrityError):
         db.commit()
+
+def test_shadows(db, tournament):
+    db.add_all([
+        make_event(teams=[2], judges=[1], block_id="rescue1.a", ts_sched=300, arena="rescue.1"),
+        make_event(teams=[3], judges=[1], block_id="rescue1.a", ts_sched=301, arena="rescue.1"),
+        make_event(teams=[4], judges=[1], block_id="rescue1.a", ts_sched=302, arena="rescue.1")
+    ])
+
+    assert tournament.blocks["rescue1.a"].events_query(db, hide_shadows=True).count() == 2
+    assert tournament.blocks["rescue1.a"].events_query(db, hide_shadows=False).count() == 3

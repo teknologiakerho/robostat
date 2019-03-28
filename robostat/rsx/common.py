@@ -4,6 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
 import robostat
+import robostat.db as model
 from robostat.util import lazy
 
 def ee(mes):
@@ -16,8 +17,13 @@ def styleid(id):
     return click.style("[%s]" % id, fg="cyan")
 
 def nameid(obj):
+    name = obj.name
+
+    if getattr(obj, "is_shadow", False):
+        name = click.style(name, fg="bright_black")
+
     return "%s %s" % (
-        obj.name,
+        name,
         styleid(obj.id)
     )
 

@@ -2,63 +2,82 @@ import click
 from sqlalchemy.exc import IntegrityError
 from robostat import db as model
 from robostat.rsx.common import RsxError, verbose_option, db_option, ee, nameid, styleid
+from robostat.rsx.crud import add_sym, del_sym, query_selectors
 
-add_sym = click.style("[+]", fg="green", bold=True)
-del_sym = click.style("[-]", fg="red", bold=True)
+class Crud:
 
-def query_named(db, cls, srch):
-    if not srch:
-        raise RsxError("Missing identifier")
+    def __init__(self, db):
+        self.db = db
 
-    if srch[0] == "@":
-        return db.query(cls).filter_by(name=srch[1:]).first()
+class BlockCrud(Crud):
 
-    try:
-        id = int(srch)
-    except ValueError:
-        raise RsxError("Not a valid id: '%s'" % srch)
+    def del_(self, srch):
+        ndel = self.db.query(model.Event).filter_by(block_id=srch).delete()
 
-    return db.query(cls).filter_by(id=id).first()
+        if ndel:
+            click.echo("%s Deleted all events from block %s (%d total)" % (
+                del_sym,
+                styleid(srch),
+                ndel
+            ))
+        else:
+            ee("Block %s has no events; did nothing" % srch)
 
-def del_block(db, srch):
-    ndel = db.query(model.Event).filter_by(block_id=srch).delete()
+class TeamCrud(Crud):
 
-    if ndel:
-        click.echo("%s Deleted all events from block %s (%d total)" % (
-            del_sym,
-            styleid(srch),
-            ndel
-        ))
-    else:
-        ee("Block %s has no events; did nothing" % srch)
+    def del_(self, srch):
+        team = query_selectors(self.db, model.Team, [srch]).first()
 
-def del_team(db, srch):
-    team = query_named(db, model.Team, srch)
+        if team is None:
+            raise RsxError("No such team: '%s'" % srch)
 
-    if team is None:
-        raise RsxError("No such team: '%s'" % srch)
+        self.db.delete(team)
+        
+        try:
+            self.db.commit()
+        except IntegrityError:
+            # jos joukkueella on suorituksia niin ei anna poistaa
+            self.db.rollback()
+            raise RsxError("Cannot delete team with events")
 
-    db.delete(team)
-    
-    try:
-        db.commit()
-    except IntegrityError:
-        # jos joukkueella on suorituksia niin ei anna poistaa
-        db.rollback()
-        raise RsxError("Cannot delete team with events")
+        click.echo("%s %s" % (del_sym, nameid(team)))
 
-    click.echo("%s %s" % (del_sym, nameid(team)))
-
-deleters = {
-    "block": del_block,
-    "team": del_team
+cruds = {
+    "block": BlockCrud,
+    "team": TeamCrud
 }
+
+def get_cruds(attr):
+    return [k for k,v in cruds.items() if hasattr(v, attr)]
 
 @click.command("del")
 @verbose_option
 @db_option
-@click.argument("what", type=click.Choice(list(deleters)))
+@click.argument("what", type=click.Choice(get_cruds("del_")))
 @click.argument("param")
 def del_command(**kwargs):
-    deleter = deleters[kwargs["what"]]
-    deleter(kwargs["db"], kwargs["param"])
+    deleter = cruds[kwargs["what"]]
+    crud = deleter(kwargs["db"])
+    crud.del_(kwargs["param"])
+
+@click.command("shadow")
+@verbose_option
+@db_option
+@click.argument("selector")
+def shadow_command(**kwargs):
+    db = kwargs["db"]
+    team = query_selectors(db, model.Team, [kwargs["selector"]]).first()
+
+    if team is None:
+        raise RsxError("Team not found: %s" % kwargs["selector"])
+
+    old_nameid = nameid(team)
+    team.is_shadow = not team.is_shadow
+
+    click.echo("%s %s %s" % (
+        old_nameid,
+        click.style("=>", bold=True),
+        nameid(team)
+    ))
+
+    db.commit()

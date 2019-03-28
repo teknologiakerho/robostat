@@ -16,6 +16,7 @@ class Team(Base):
 
     id = sa.Column(sa.Integer, primary_key=True)
     name = sa.Column(sa.Text, nullable=False, unique=True)
+    is_shadow = sa.Column(sa.Integer, server_default=sa.text("0"), nullable=False)
 
 class Judge(Base):
     __tablename__ = "judges"

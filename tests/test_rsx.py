@@ -98,12 +98,17 @@ def test_show(runner):
     assert res.exit_code == 0
     n_blocks = num_lines(res.output)
 
-    runner.import_("xsumo", "aikataulu-xsumo-15.tsv")
+    runner.import_("xsumo", "aikataulu-xsumo-16.tsv")
 
     # Lohkoon pitäs olla ilmestynyt eventtejä
     res = runner.show("block", "xsumo")
+    n_lines_16 = num_lines(res.output)
     assert res.exit_code == 0
-    assert num_lines(res.output) > 1
+    assert n_lines_16 > 1
+
+    res = runner.show("block", "xsumo", "--hide-shadows")
+    assert res.exit_code == 0
+    assert num_lines(res.output) < n_lines_16
 
     # Mutta uutta lohkoa ei pitäs olla tullut koska xsumo on initissä
     res = runner.show("blocks")
@@ -122,14 +127,14 @@ def test_show(runner):
 
 def test_del(runner):
     # Ei pitäs pystyä poistaa jos ei oo olemassa
-    res = runner.del_("team", "@Tropos")
+    res = runner.del_("team", "Tropos")
     assert res.exit_code == 1
     assert "No such team" in res.output
 
     runner.import_("rescue1.a", "aikataulu-rescue.tsv")
 
     # Ei pitäs pystyä poistaa koska sillä on suorituksia
-    res = runner.del_("team", "@Tropos")
+    res = runner.del_("team", "Tropos")
     assert res.exit_code == 1
     assert "Cannot delete team with events" in res.output
 
@@ -137,6 +142,6 @@ def test_del(runner):
     assert res.exit_code == 0
 
     # Nyt pitäs onnistua
-    res = runner.del_("team", "@Tropos")
+    res = runner.del_("team", "Tropos")
     assert res.exit_code == 0
     assert "[-] Tropos" in res.output

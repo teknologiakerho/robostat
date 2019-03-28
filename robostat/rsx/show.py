@@ -8,6 +8,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import subqueryload, contains_eager
 from tabulate import tabulate
 from robostat import db as model
+from robostat.tournament import hide_query_shadows
 from robostat.util import enumerate_rank
 from robostat.rsx.common import RsxError, InitParamType, db_option, verbose_option, nameid, styleid
 
@@ -107,7 +108,7 @@ class PrettyFormatter:
                 score
             )
 
-    @table_generator(["Id", "Name", "Blocks"])
+    @table_generator(["Id", "Name", "Flags", "Blocks"])
     def print_teams(self, team_info):
         for team, blocks in team_info:
             bs = ", ".join(
@@ -117,6 +118,7 @@ class PrettyFormatter:
             yield (
                 styleid(team.id),
                 team.name,
+                "Shadow" if team.is_shadow else "",
                 bs
             )
 
@@ -132,11 +134,12 @@ class BlockInfo:
 
 class ShowOpt:
 
-    def __init__(self, db, init, fmt, param):
+    def __init__(self, db, init, fmt, param, hide_shadows):
         self.db = db
         self.init = init
         self.fmt = fmt
         self.param = param
+        self.hide_shadows = hide_shadows
 
 def require_init(f):
     @functools.wraps(f)
@@ -158,8 +161,9 @@ def require_param(name):
 
 @require_param("block")
 def show_block(block, opt):
-    events = opt.db.query(model.Event)\
+    query = opt.db.query(model.Event)\
             .filter_by(block_id=block)\
+            .order_by(model.Event.ts_sched)\
             .options(
                     subqueryload(model.Event.teams_part)
                     .joinedload(model.EventTeam.team, innerjoin=True),
@@ -167,14 +171,16 @@ def show_block(block, opt):
                     .joinedload(model.EventJudging.judge, innerjoin=True),
                     subqueryload(model.Event.judgings)
                     .joinedload(model.EventJudging.scores, innerjoin=True)
-            )\
-            .all()
+            )
 
-    opt.fmt.print_block(events)
+    if opt.hide_shadows:
+        query = hide_query_shadows(query)
+
+    opt.fmt.print_block(query.all())
 
 @require_param("block")
 def show_scores(block, opt):
-    scores = opt.db.query(model.Score)\
+    query = opt.db.query(model.Score)\
             .join(model.Score.event)\
             .filter(model.Event.block_id == block)\
             .order_by(
@@ -186,8 +192,12 @@ def show_scores(block, opt):
                     contains_eager(model.Score.event),
                     subqueryload(model.Score.team),
                     subqueryload(model.Score.judge)
-            )\
-            .all()
+            )
+
+    if opt.hide_shadows:
+        query = hide_query_shadows(query)
+
+    scores = query.all()
 
     if opt.init is not None and block in opt.init.tournament.blocks:
         ruleset = opt.init.tournament.blocks[block].ruleset
@@ -239,26 +249,40 @@ def show_blocks(opt):
 @require_param("ranking")
 def show_ranking(ranking, opt):
     try:
-        r = opt.init.tournament.rankings[ranking]
+        ranks = opt.init.tournament.rankings[ranking]
     except KeyError:
         raise RsxError("No such ranking: '%s'" % ranking)
 
-    opt.fmt.print_ranking(r(opt.db))
+    ranks = ranks(opt.db)
+
+    if opt.hide_shadows:
+        ranks = [r for r in ranks if not r[0].is_shadow]
+
+    opt.fmt.print_ranking(ranks)
 
 def show_teams(opt):
-    teams = opt.db.query(model.Team)\
-            .order_by(model.Team.id)\
-            .all()
+    teams_query = opt.db.query(model.Team)\
+            .order_by(model.Team.id)
 
-    team_blocks = opt.db.query(
+    team_blocks_query = opt.db.query(
             model.EventTeam.team_id,
             model.Event.block_id
         )\
         .select_from(model.Event)\
-        .join(model.Event.teams_part)\
+        .join(model.Event.teams_part)
+
+    if opt.hide_shadows:
+        teams_query = teams_query.filter(~model.Team.is_shadow)
+        team_blocks_query = team_blocks_query\
+                .join(model.EventTeam.team)\
+                .filter(~model.Team.is_shadow)
+
+    team_blocks_query = team_blocks_query\
         .distinct()\
-        .order_by(model.Event.block_id)\
-        .all()
+        .order_by(model.Event.block_id)
+
+    teams = teams_query.all()
+    team_blocks = team_blocks_query.all()
 
     block_info = collections.defaultdict(list)
 
@@ -289,6 +313,7 @@ choices = {
 @click.option("-f", "--format", default="pretty", type=click.Choice(["pretty", "csv"]))
 @click.option("--csv-delimiter", default=",")
 @click.option("--table-format", default="simple")
+@click.option("--hide-shadows", is_flag=True)
 @click.argument("what", type=click.Choice(list(choices)))
 @click.argument("param", required=False)
 def show_command(**kwargs):
@@ -301,7 +326,8 @@ def show_command(**kwargs):
             db=kwargs["db"],
             init=kwargs["init"],
             fmt=fmt,
-            param=kwargs["param"]
+            param=kwargs["param"],
+            hide_shadows=kwargs["hide_shadows"]
     )
 
     show = choices[kwargs["what"]]

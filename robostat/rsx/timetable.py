@@ -4,34 +4,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import subqueryload
 from pttt.timetable import parse_timetable, create_timetable, AbsoluteTime
 from robostat import db as model
-from robostat.rsx.common import RsxError, verbose_option, db_option, nameid
-
-def get_or_insert(db, cls, names, strict=False, confirm=True):
-    ret = db.query(cls).filter(cls.name.in_(names)).all()
-
-    if len(ret) < len(names):
-        missing = set(names).difference(x.name for x in ret)
-
-        if strict:
-            raise RsxError("Missing names: %s" % missing)
-
-        if confirm:
-            click.echo("Not in db (%d): %s" % (len(missing), ", ".join(missing)))
-            click.confirm("OK to add?", abort=True)
-
-        added = [cls(name=name) for name in missing]
-        db.add_all(added)
-        db.commit()
-
-        for x in added:
-            click.echo("%s %s" % (
-                click.style("[+]", fg="green", bold=True),
-                nameid(x)
-            ))
-
-        ret.extend(added)
-
-    return ret
+from robostat.rsx.common import RsxError, verbose_option, db_option
+from robostat.rsx.crud import insert_missing_interactive
 
 @click.command("import")
 @verbose_option
@@ -52,8 +26,15 @@ def import_command(db, strict, y, **kwargs):
     teams = set(timetable[:,1:1+k].labels)
     judges = set(timetable[:,1+k:].labels)
 
-    teams = get_or_insert(db, model.Team, teams, strict=strict, confirm=not y)
-    judges = get_or_insert(db, model.Judge, judges, strict=strict, confirm=not y)
+    autoconfirm = False if strict else (True if y else None)
+    teams = insert_missing_interactive(db, model.Team, teams,
+            creator=lambda name: model.Team(name=name, is_shadow=name.startswith("::")),
+            autoconfirm=autoconfirm
+    )
+
+    judges = insert_missing_interactive(db, model.Judge, judges,
+            creator=lambda name: model.Judge(name=name), autoconfirm=autoconfirm
+    )
 
     teams = dict((t.name, t) for t in teams)
     judges = dict((j.name, j) for j in judges)

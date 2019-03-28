@@ -62,8 +62,8 @@ class Block:
 
         return query
 
-    def decode_scores(self, db):
-        scores = self.scores_query(db)\
+    def decode_scores(self, db, hide_shadows=False):
+        scores = self.scores_query(db, hide_shadows=hide_shadows)\
                 .options(joinedload(model.Score.team, innerjoin=True))\
                 .all()
 

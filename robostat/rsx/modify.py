@@ -64,6 +64,7 @@ def del_command(**kwargs):
 @verbose_option
 @db_option
 @click.argument("selector")
+@click.argument("state", default="toggle", type=click.Choice(["on", "off", "toggle"]))
 def shadow_command(**kwargs):
     db = kwargs["db"]
     team = query_selectors(db, model.Team, [kwargs["selector"]]).first()
@@ -72,7 +73,9 @@ def shadow_command(**kwargs):
         raise RsxError("Team not found: %s" % kwargs["selector"])
 
     old_nameid = nameid(team)
-    team.is_shadow = not team.is_shadow
+
+    v = {"on": True, "off": False, "toggle": not team.is_shadow}[kwargs["state"]]
+    team.is_shadow = v
 
     click.echo("%s %s %s" % (
         old_nameid,

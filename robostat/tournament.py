@@ -124,3 +124,28 @@ def aggregate_scores(scores, aggregate):
 
 def sort_ranking(groups):
     return sorted(groups, key=lambda x: x[1], reverse=True)
+
+@functools.total_ordering
+class OrderRank:
+
+    def __init__(self, order, rank):
+        self.order = order
+        self.rank = rank
+
+    def __str__(self):
+        return "[%s] %s" % (self.order, str(self.rank))
+
+    def __repr__(self):
+        return "[%s] %s" % (self.order, repr(self.rank))
+
+    def __eq__(self, other):
+        return self.order == other.order and self.rank == other.rank
+
+    def __lt__(self, other):
+        if self.order != other.order:
+            return self.order < other.order
+        return self.rank < other.rank
+
+    @classmethod
+    def wrap_aggregate(cls, order, aggregate):
+        return lambda scores: cls(order, aggregate(scores))

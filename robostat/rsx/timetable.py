@@ -2,7 +2,7 @@ from datetime import datetime
 import click
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import subqueryload
-from pttt.timetable import parse_timetable, create_timetable, AbsoluteTime
+from pttt.timetable import parse_timetable, create_timetable
 from robostat import db as model
 from robostat.rsx.common import RsxError, verbose_option, db_option
 from robostat.rsx.crud import insert_missing_interactive
@@ -17,7 +17,7 @@ from robostat.rsx.crud import insert_missing_interactive
 @click.argument("block")
 @click.argument("file", type=click.File("r"), default="-")
 def import_command(db, strict, y, **kwargs):
-    timetable = parse_timetable(kwargs["file"].read(), datefmt=kwargs["datefmt"])
+    timetable = parse_timetable(kwargs["file"].read(), time_fmt=kwargs["datefmt"])
 
     if not timetable:
         return
@@ -43,7 +43,7 @@ def import_command(db, strict, y, **kwargs):
     for e in timetable:
         event = model.Event(
             block_id=kwargs["block"],
-            ts_sched=int(e.time),
+            ts_sched=int(e.time.timestamp()),
             arena=e[0].name,
             teams_part=[model.EventTeam(team_id=teams[l.name].id) for l in e[1:1+k]],
             judgings=[model.EventJudging(judge_id=judges[l.name].id) for l in e[1+k:]]
@@ -95,10 +95,11 @@ def export_command(db, block, ids, **kwargs):
         j_name = lambda judge: judge.name
 
     timetable = create_timetable(
-        (
-            AbsoluteTime(datetime.fromtimestamp(e.ts_sched)),
+        ((
+            datetime.fromtimestamp(e.ts_sched),
             [e.arena, *map(t_name, e.teams), *map(j_name, e.judges)]
-        ) for e in events
+        ) for e in events),
+        time_fmt="absolute"
     )
 
     print(timetable)

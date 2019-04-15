@@ -89,7 +89,11 @@ class EventTeam(Base):
 
     event = relationship("Event")
     team = relationship("Team")
-    scores = relationship("Score")
+
+    scores = relationship("Score",
+            cascade="all, delete-orphan",
+            passive_deletes=True
+    )
 
 class EventJudging(Base):
     __tablename__ = "event_judging"
@@ -103,7 +107,11 @@ class EventJudging(Base):
 
     event = relationship("Event")
     judge = relationship("Judge")
-    scores = relationship("Score")
+
+    scores = relationship("Score",
+            cascade="all, delete-orphan",
+            passive_deletes=True
+    )
 
     @property
     def score(self):
@@ -120,7 +128,8 @@ class Score(Base):
             sa.PrimaryKeyConstraint("event_id", "team_id", "judge_id"),
             sa.ForeignKeyConstraint(
                 ("event_id", "team_id"),
-                ("event_teams.event_id", "event_teams.team_id")
+                ("event_teams.event_id", "event_teams.team_id"),
+                ondelete="CASCADE"
             ),
             sa.ForeignKeyConstraint(
                 ("event_id", "judge_id"),
@@ -129,8 +138,8 @@ class Score(Base):
             )
     )
 
-    event_id = sa.Column(sa.Integer, sa.ForeignKey("events.id", ondelete="CASCADE"),
-            nullable=False, index=True)
+    # Tässä ei cascadea koska event_teams ja event_judging cascadet poistaa tän
+    event_id = sa.Column(sa.Integer, sa.ForeignKey("events.id"), nullable=False, index=True)
     team_id = sa.Column(sa.Integer, sa.ForeignKey("teams.id", ondelete="CASCADE"), nullable=False)
     judge_id = sa.Column(sa.Integer, sa.ForeignKey("judges.id", ondelete="CASCADE"),nullable=False)
     data = sa.Column(sa.LargeBinary) # Blob
@@ -166,9 +175,34 @@ listen(Base.metadata, "after_create", sa.DDL("""
 """))
 
 listen(Base.metadata, "after_create", sa.DDL("""
+    CREATE TRIGGER t_reset_judging_delete
+    AFTER DELETE ON event_teams
+    BEGIN
+        UPDATE event_judging
+        SET ts=NULL
+        WHERE event_judging.event_id=OLD.event_id;
+    END;
+"""))
+
+listen(Base.metadata, "after_create", sa.DDL("""
+    CREATE TRIGGER t_reset_judging_insert
+    AFTER INSERT ON event_teams
+    BEGIN
+        UPDATE event_judging
+        SET ts=NULL
+        WHERE event_judging.event_id=NEW.event_id;
+    END;
+"""))
+
+listen(Base.metadata, "after_create", sa.DDL("""
     CREATE TRIGGER t_disallow_score_delete
     AFTER DELETE ON scores
-    WHEN EXISTS(SELECT 1 FROM events WHERE id=OLD.event_id)
+    WHEN EXISTS(
+        SELECT 1
+        FROM event_judging, event_teams
+        WHERE event_judging.event_id=OLD.event_id AND event_judging.judge_id=OLD.judge_id
+            AND event_teams.event_id=OLD.team_id AND event_teams.team_id=OLD.team_id
+    )
     BEGIN
         SELECT RAISE(ABORT, "Can't remove score whose event exists");
     END;

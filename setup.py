@@ -11,7 +11,11 @@ setup(
         ],
         extras_require = {
             "dev": ["pytest"],
-            "cli": ["click", "pttt", "tabulate"]
+            "cli": [
+                "click",
+                "pttt @ https://github.com/vfprintf/pttt/tarball/master",
+                "tabulate"
+            ]
         },
         entry_points = {
             "console_scripts": [

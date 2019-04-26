@@ -54,7 +54,7 @@ def runner():
     with cli_runner.isolated_filesystem():
         # Tää on vähän hasardi viritelmä koska rsx on se mitä olis tarkotus testata
         # mutta tuskin tää räjähtää
-        db_path = "sqlite:///db.sqlite3"
+        db_path = "db.sqlite3"
         res = cli_runner.invoke(rsx, ["create", "-d", db_path, "-i", init_file])
         assert res.exit_code == 0
 

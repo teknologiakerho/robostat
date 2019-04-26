@@ -67,18 +67,19 @@ class SQLAParamType(click.ParamType):
     name = "sqlalchemy"
 
     def __init__(self, autocommit=True, autoclose=True, autoverbose="verbose",
-            engine_args={}, session_args={}):
+            engine_args={}, session_args={}, prefix="sqlite:///"):
         self.autocommit = autocommit
         self.autoclose = autoclose
         self.autoverbose = autoverbose
         self.engine_args = engine_args
         self.session_args = session_args
+        self.prefix = prefix
 
     def convert(self, value, param, ctx):
         if isinstance(value, SQLAParam):
             return value
 
-        engine = create_engine(value, **self.engine_args)
+        engine = create_engine("%s%s" % (self.prefix, value), **self.engine_args)
         value = SQLAParam(engine, autocommit=self.autocommit, session_args=self.session_args)
 
         if ctx is not None:

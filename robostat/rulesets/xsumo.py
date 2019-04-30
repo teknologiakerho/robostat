@@ -114,21 +114,27 @@ class XSumoRank:
 class XSumoScoreRank(XSumoRank):
 
     def __eq__(self, other):
-        return self.score == other.score
+        return self.score == other.score and self.wins == other.wins and self.ties == other.ties
 
     def __lt__(self, other):
-        return self.score < other.score
+        if self.score != other.score:
+            return self.score < other.score
+        if self.wins != other.wins:
+            return self.wins < other.wins
+        return self.ties < other.ties
 
 @functools.total_ordering
 class XSumoWinsRank(XSumoRank):
 
     def __eq__(self, other):
-        return self.wins == other.wins and self.ties == other.ties
+        return self.wins == other.wins and self.ties == other.ties and self.score == other.score
 
     def __lt__(self, other):
         if self.wins != other.wins:
             return self.wins < other.wins
-        return self.ties < other.ties
+        if self.ties != other.ties:
+            return self.ties < other.ties
+        return self.score < other.score
 
 class XSumoRuleset(Ruleset):
 

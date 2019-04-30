@@ -216,9 +216,8 @@ def test_ranking():
     score_ranks = dict((t, xsumo.XSumoScoreRank.from_scores(s)) for t,s in scores.items())
     win_ranks = dict((t, xsumo.XSumoWinsRank.from_scores(s)) for t,s in scores.items())
 
-    assert score_ranks["A"] == score_ranks["B"]
     assert score_ranks["C"] == score_ranks["E"]
-    assert score_ranks["B"] > score_ranks["D"] > score_ranks["C"]
+    assert score_ranks["B"] > score_ranks["A"] > score_ranks["D"] > score_ranks["C"]
 
     assert win_ranks["C"] == win_ranks["E"]
     assert win_ranks["B"] > win_ranks["D"] > win_ranks["A"] > win_ranks["C"]

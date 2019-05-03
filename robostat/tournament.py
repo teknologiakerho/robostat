@@ -144,29 +144,29 @@ class RankProxy:
         return "[%s]" % self.rank
 
 @functools.total_ordering
-class OrderRank(RankProxy):
+class WeightedRank(RankProxy):
 
-    def __init__(self, order, rank):
+    def __init__(self, weight, rank):
         super().__init__(rank)
-        self.order = order
+        self.weight = weight
 
     def __str__(self):
-        return "%s: %s" % (self.order, super().__str__())
+        return "%s: %s" % (self.weight, super().__str__())
 
     def __repr__(self):
-        return "%s: %s" % (self.order, super().__repr__())
+        return "%s: %s" % (self.weight, super().__repr__())
 
     def __eq__(self, other):
-        return self.order == other.order and self.rank == other.rank
+        return self.weight == other.weight and self.rank == other.rank
 
     def __lt__(self, other):
-        if self.order != other.order:
-            return self.order < other.order
+        if self.weight != other.weight:
+            return self.weight < other.weight
         return self.rank < other.rank
 
     @classmethod
-    def wrap_aggregate(cls, order, aggregate):
-        return lambda scores: cls(order, aggregate(scores))
+    def wrap_aggregate(cls, weight, aggregate):
+        return lambda scores: cls(weight, aggregate(scores))
 
 @functools.total_ordering
 class CombinedRank(RankProxy):

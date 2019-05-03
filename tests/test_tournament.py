@@ -197,6 +197,22 @@ def test_hide_shadows(db, tournament):
     assert tournament.blocks["rescue1.a"].events_query(db, hide_shadows=False).count() == 3
 
 @tj_data
+def test_weighted_ranking(db, tournament):
+    event_a = make_event(teams=[1], judges=[1], block_id="rescue1.a", ts_sched=0, arena="rescue.1")
+    event_b = make_event(teams=[2], judges=[1], block_id="rescue1.b", ts_sched=1, arena="rescue.2")
+    db.add_all([event_a, event_b])
+    db.commit()
+
+    ruleset = tournament.blocks["rescue1.a"].ruleset
+    event_a.scores[0].data = ruleset.encode(R(ruleset, {"time": 0}))
+    event_b.scores[0].data = ruleset.encode(R(ruleset, {"viiva_punainen": "S", "time": 200}))
+    db.commit()
+
+    ranks = tournament.rankings["rescue1.weighted"](db)
+    assert [t.id for t,_ in ranks] == [1, 2]
+    assert [i for i,_ in enumerate_rank(ranks, key=lambda x:x[1])] == [1, 2]
+
+@tj_data
 @xsumo_events
 @data(lambda: [
     model.Tiebreak(ranking_id="xsumo.tb", team_id=1, weight=3),

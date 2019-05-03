@@ -1,5 +1,5 @@
 import robostat
-from robostat.tournament import aggregate_scores, sort_ranking, decode_block_scores,\
+from robostat.tournament import WeightedRank, aggregate_scores, sort_ranking, decode_block_scores,\
         tiebreak_ranking, combine_ranks
 from robostat.rulesets.xsumo import XSRuleset, XSumoScoreRank, XSumoWinsRank
 from robostat.rulesets.rescue import RescueRuleset, RescueMaxRank
@@ -55,4 +55,12 @@ def rank_xsumo_tb(db):
 def rank_rescue1(db):
     scores = decode_block_scores(db, rescue1_a, rescue1_b)
     ranks = aggregate_scores(scores, RescueMaxRank.from_scores)
+    return sort_ranking(ranks.items())
+
+@robostat.ranking("rescue1.weighted", name="Rescue 1 (Painotettu)")
+def rank_rescue1_weighted(db):
+    scores_a = rescue1_a.decode_scores(db)
+    scores_b = rescue1_b.decode_scores(db)
+    ranks = aggregate_scores(scores_a, WeightedRank.wrap_aggregate(2, RescueMaxRank.from_scores))
+    ranks.update(aggregate_scores(scores_b, WeightedRank.wrap_aggregate(1, RescueMaxRank.from_scores)))
     return sort_ranking(ranks.items())

@@ -1,50 +1,33 @@
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, subqueryload
+from sqlalchemy.orm import subqueryload
 from sqlalchemy.exc import IntegrityError
 import robostat
-import robostat.tournament
 import robostat.db as model
 from robostat.rulesets.xsumo import XSRuleset
-from .helpers import XS2, R
+from .helpers import XS2, R, data, make_event
 
-@pytest.fixture(scope="module")
-def tournament():
-    # TÄhän vois tehä jonku context managerin robostatiin
-    old_default = robostat.default_tournament
-    ret = robostat.tournament.Tournament()
-    robostat.default_tournament = ret
-    from . import init1
-    robostat.default_tournament = old_default
-    return ret
+tj_data = data(lambda: [
+    model.Team(id=1, name="Joukkue A"),
+    model.Team(id=2, name="Joukkue B"),
+    model.Team(id=3, name="Joukkue C"),
+    model.Team(id=4, name="Joukkue D", is_shadow=1),
 
-def insert_test_data(db):
-    db.add_all([
-        model.Team(id=1, name="Joukkue A"),
-        model.Team(id=2, name="Joukkue B"),
-        model.Team(id=3, name="Joukkue C"),
-        model.Team(id=4, name="Joukkue D", is_shadow=1),
+    model.Judge(id=1, name="Tuomari A"),
+    model.Judge(id=2, name="Tuomari B")
+])
 
-        model.Judge(id=1, name="Tuomari A"),
-        model.Judge(id=2, name="Tuomari B")
-    ])
+xsumo_events = data(lambda: [
+    make_event(teams=[1, 2], judges=[1], block_id="xsumo", ts_sched=0, arena="xsumo.1"),
+    make_event(teams=[2, 3], judges=[1], block_id="xsumo", ts_sched=1, arena="xsumo.1"),
+    make_event(teams=[3, 1], judges=[1], block_id="xsumo", ts_sched=2, arena="xsumo.1"),
+])
 
-    db.commit()
-
-@pytest.fixture
-def db():
-    engine = create_engine("sqlite://", echo="debug")
-    model.Base.metadata.create_all(engine)
-    session = sessionmaker(bind=engine)
-    ret = session()
-    insert_test_data(ret)
-    return ret
-
-def make_event(teams, judges, **kwargs):
-    ret = model.Event(**kwargs)
-    ret.team_ids.extend(teams)
-    ret.judge_ids.extend(judges)
-    return ret
+rescue_events = data(lambda: [
+    make_event(teams=[1], judges=[1], block_id="rescue1.a", ts_sched=0, arena="rescue.1"),
+    make_event(teams=[2], judges=[2], block_id="rescue1.a", ts_sched=0, arena="rescue.2"),
+    make_event(teams=[1], judges=[1], block_id="rescue1.b", ts_sched=1, arena="rescue.1"),
+    make_event(teams=[2], judges=[2], block_id="rescue1.b", ts_sched=1, arena="rescue.2")
+])
 
 def query_full_events(db, block):
     return block.events_query(db)\
@@ -57,15 +40,9 @@ def query_full_events(db, block):
                     subqueryload(model.Event.scores)
             ).all()
 
-def test_tournament_single_xsumo(db, tournament):
-    db.add_all([
-        make_event(teams=[1, 2], judges=[1], block_id="xsumo", ts_sched=0, arena="xsumo.1"),
-        make_event(teams=[2, 3], judges=[1], block_id="xsumo", ts_sched=1, arena="xsumo.1"),
-        make_event(teams=[3, 1], judges=[1], block_id="xsumo", ts_sched=2, arena="xsumo.1"),
-    ])
-
-    db.commit()
-
+@tj_data
+@xsumo_events
+def test_single_block_query_events(db, tournament):
     events = query_full_events(db, tournament.blocks["xsumo"])
 
     assert len(events) == 3
@@ -80,6 +57,11 @@ def test_tournament_single_xsumo(db, tournament):
             .count() == 0
 
     assert tournament.blocks["xsumo.karsinnat"].events_query(db).count() == 0
+
+@tj_data
+@xsumo_events
+def test_single_judging(db, tournament):
+    events = query_full_events(db, tournament.blocks["xsumo"])
 
     s1, s2 = XS2([((False, "W"), (True, "L"))])
     es1, es2 = events[0].scores
@@ -101,19 +83,9 @@ def test_tournament_single_xsumo(db, tournament):
     rank_score = tournament.rankings["xsumo.score"](db)
     assert [t.id for t,r in rank_score] == [1, 2, 3]
 
-    rank_wins = tournament.rankings["xsumo.wins"](db)
-    assert [t.id for t,r in rank_wins] == [1, 2, 3]
-
-def test_tournament_double_rescue(db, tournament):
-    db.add_all([
-        make_event(teams=[1], judges=[1], block_id="rescue1.a", ts_sched=10, arena="rescue.1"),
-        make_event(teams=[2], judges=[2], block_id="rescue1.a", ts_sched=10, arena="rescue.2"),
-        make_event(teams=[1], judges=[1], block_id="rescue1.b", ts_sched=11, arena="rescue.1"),
-        make_event(teams=[2], judges=[2], block_id="rescue1.b", ts_sched=11, arena="rescue.2")
-    ])
-
-    db.commit()
-
+@tj_data
+@rescue_events
+def test_query_double_block_events(db, tournament):
     events_a = query_full_events(db, tournament.blocks["rescue1.a"])
     events_b = query_full_events(db, tournament.blocks["rescue1.b"])
 
@@ -123,9 +95,15 @@ def test_tournament_double_rescue(db, tournament):
         assert all(len(e.teams) == 1 for e in evs)
         assert all(len(e.scores) == 1 for e in evs)
 
+@tj_data
+@rescue_events
+def test_ranking_double_block(db, tournament):
+    event_a = query_full_events(db, tournament.blocks["rescue1.a"])[0]
+    event_b = query_full_events(db, tournament.blocks["rescue1.b"])[0]
     ruleset = tournament.blocks["rescue1.a"].ruleset
+
     s1 = R(ruleset, {"viiva_punainen": "S", "time": 200})
-    events_a[0].scores[0].data = ruleset.encode(s1)
+    event_a.scores[0].data = ruleset.encode(s1)
 
     db.commit()
 
@@ -134,7 +112,7 @@ def test_tournament_double_rescue(db, tournament):
     assert ranks[1][1].best is None
 
     s2 = R(ruleset, {"viiva_punainen": "S", "time": 100})
-    events_b[0].scores[0].data = ruleset.encode(s2)
+    event_b.scores[0].data = ruleset.encode(s2)
 
     db.commit()
 
@@ -142,14 +120,12 @@ def test_tournament_double_rescue(db, tournament):
     assert ranks[0][1].best.time == 100
     assert ranks[1][1].best is None
 
+@tj_data
+@data(lambda: [
+    make_event(teams=[1,2], judges=[1], block_id="xsumo.karsinnat", ts_sched=100,
+        arena="xsumo.1")
+])
 def test_remove_events(db, tournament):
-    db.add_all([
-        make_event(teams=[1,2], judges=[1], block_id="xsumo.karsinnat", ts_sched=100,
-            arena="xsumo.1")
-    ])
-
-    db.commit()
-
     assert tournament.blocks["xsumo.karsinnat"].events_query(db).count() == 1
     assert tournament.blocks["xsumo.karsinnat"].scores_query(db).count() == 2
 
@@ -160,7 +136,8 @@ def test_remove_events(db, tournament):
     assert tournament.blocks["xsumo.karsinnat"].events_query(db).count() == 0
     assert tournament.blocks["xsumo.karsinnat"].scores_query(db).count() == 0
 
-def test_remove_scores(db, tournament):
+@tj_data
+def test_remove_scores(db):
     event = make_event(teams=[1], judges=[1], block_id="remove-scores.xxx", ts_sched=1,
             arena="remove-scores.xxx")
 
@@ -176,18 +153,16 @@ def test_remove_scores(db, tournament):
 
     db.rollback()
 
+@tj_data
+@data(lambda: [
+    model.Team(id=100, name="asdt 1"),
+    model.Judge(id=100, name="asdj 1"),
+    make_event(teams=[100], judges=[100], block_id="remove.xxx", ts_sched=1,
+        arena="remove.xxx"),
+    make_event(teams=[1,100], judges=[100], block_id="remove.xxx", ts_sched=2,
+        arena="remove.xxx")
+])
 def test_remove_people(db):
-    db.add_all([
-        model.Team(id=100, name="asdt 1"),
-        model.Judge(id=100, name="asdj 1"),
-        make_event(teams=[100], judges=[100], block_id="remove.xxx", ts_sched=1,
-            arena="remove.xxx"),
-        make_event(teams=[1,100], judges=[100], block_id="remove.xxx", ts_sched=2,
-            arena="remove.xxx")
-    ])
-
-    db.commit()
-
     with pytest.raises(IntegrityError):
         db.query(model.Team).filter_by(id=100).delete()
 
@@ -200,6 +175,7 @@ def test_remove_people(db):
 
     db.commit()
 
+@tj_data
 def test_block_conflict(db):
     db.add_all([
         make_event(teams=[1], judges=[1], block_id="rescue1.a", ts_sched=200, arena="rescue.1"),
@@ -209,12 +185,12 @@ def test_block_conflict(db):
     with pytest.raises(IntegrityError):
         db.commit()
 
-def test_shadows(db, tournament):
-    db.add_all([
-        make_event(teams=[2], judges=[1], block_id="rescue1.a", ts_sched=300, arena="rescue.1"),
-        make_event(teams=[3], judges=[1], block_id="rescue1.a", ts_sched=301, arena="rescue.1"),
-        make_event(teams=[4], judges=[1], block_id="rescue1.a", ts_sched=302, arena="rescue.1")
-    ])
-
+@tj_data
+@data(lambda: [
+    make_event(teams=[2], judges=[1], block_id="rescue1.a", ts_sched=300, arena="rescue.1"),
+    make_event(teams=[3], judges=[1], block_id="rescue1.a", ts_sched=301, arena="rescue.1"),
+    make_event(teams=[4], judges=[1], block_id="rescue1.a", ts_sched=302, arena="rescue.1")
+])
+def test_hide_shadows(db, tournament):
     assert tournament.blocks["rescue1.a"].events_query(db, hide_shadows=True).count() == 2
     assert tournament.blocks["rescue1.a"].events_query(db, hide_shadows=False).count() == 3

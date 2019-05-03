@@ -1,5 +1,7 @@
 import itertools
+import functools
 import pytest
+import robostat.db as model
 from robostat.rulesets.xsumo import XSumoScore, XSRoundScore, XMRoundScore, XSumoResult,\
         calc_results
 from robostat.rulesets.rescue import RescueResult, RescueMultiObstacleScore
@@ -75,4 +77,21 @@ def D(ruleset, values):
     for k,v in values.items():
         setattr(ret, k, v)
 
+    return ret
+
+def data(d, db_keyword="db"):
+    def ret(f):
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            db = kwargs[db_keyword]
+            db.add_all(d())
+            db.commit()
+            return f(*args, **kwargs)
+        return wrapper
+    return ret
+
+def make_event(teams, judges, **kwargs):
+    ret = model.Event(**kwargs)
+    ret.team_ids.extend(teams)
+    ret.judge_ids.extend(judges)
     return ret

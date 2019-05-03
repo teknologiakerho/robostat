@@ -125,6 +125,13 @@ def aggregate_scores(scores, aggregate):
 def sort_ranking(groups):
     return sorted(groups, key=lambda x: x[1], reverse=True)
 
+def tiebreak_ranking(db, id):
+    ret = db.query(model.Tiebreak)\
+            .filter_by(ranking_id=id)\
+            .all()
+
+    return dict((r.team, r.weight) for r in ret)
+
 class RankProxy:
 
     def __init__(self, rank):
@@ -160,3 +167,40 @@ class OrderRank(RankProxy):
     @classmethod
     def wrap_aggregate(cls, order, aggregate):
         return lambda scores: cls(order, aggregate(scores))
+
+@functools.total_ordering
+class CombinedRank(RankProxy):
+
+    def __init__(self, rank, *ranks):
+        super().__init__(rank)
+        self.ranks = ranks
+
+    def __str__(self):
+        return "%s (%s)" % (str(self.rank), ", ".join(map(str, self.ranks)))
+
+    def __repr__(self):
+        return "%s (%s)" % (repr(self.rank), ", ".join(map(repr, self.ranks)))
+
+    def __eq__(self, other):
+        return self.rank == other.rank and all(r1==r2 for r1,r2 in zip(self.ranks, other.ranks)
+                if r1 is not None and r2 is not None)
+
+    def __lt__(self, other):
+        if self.rank != other.rank:
+            return self.rank < other.rank
+        for r1, r2 in zip(self.ranks, other.ranks):
+            if r1 is not None and r2 is not None and r1 != r2:
+                return r1 < r2
+        return False
+
+def combine_ranks(primary, *others):
+    combined = {}
+
+    for team, rank in primary.items():
+        combined[team] = [rank]
+
+    for o in others:
+        for team, ranks in combined.items():
+            ranks.append(o.get(team, None))
+
+    return dict((team, CombinedRank(*ranks)) for team, ranks in combined.items())

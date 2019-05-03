@@ -3,6 +3,7 @@ from sqlalchemy.orm import subqueryload
 from sqlalchemy.exc import IntegrityError
 import robostat
 import robostat.db as model
+from robostat.util import enumerate_rank
 from robostat.rulesets.xsumo import XSRuleset
 from .helpers import XS2, R, data, make_event
 
@@ -194,3 +195,40 @@ def test_block_conflict(db):
 def test_hide_shadows(db, tournament):
     assert tournament.blocks["rescue1.a"].events_query(db, hide_shadows=True).count() == 2
     assert tournament.blocks["rescue1.a"].events_query(db, hide_shadows=False).count() == 3
+
+@tj_data
+@xsumo_events
+@data(lambda: [
+    model.Tiebreak(ranking_id="xsumo.tb", team_id=1, weight=3),
+    model.Tiebreak(ranking_id="xsumo.tb", team_id=2, weight=2),
+    model.Tiebreak(ranking_id="xsumo.tb", team_id=3, weight=1)
+])
+def test_tiebreak_no_scores(db, tournament):
+    ranks = tournament.rankings["xsumo.tb"](db)
+
+    assert [t.id for t,_ in ranks] == [1, 2, 3]
+    assert [i for i,_ in enumerate_rank(ranks, key=lambda x:x[1])] == [1, 2, 3]
+
+@tj_data
+@xsumo_events
+@data(lambda: [
+    model.Tiebreak(ranking_id="xsumo.tb", team_id=1, weight=3),
+    model.Tiebreak(ranking_id="xsumo.tb", team_id=2, weight=2),
+    model.Tiebreak(ranking_id="xsumo.tb", team_id=3, weight=100)
+])
+def test_tiebreak_with_scores(db, tournament):
+    ranking = tournament.rankings["xsumo.tb"]
+
+    scores = db.query(model.Score)\
+            .filter_by(event_id=1)\
+            .order_by(model.Score.team_id)\
+            .all()
+
+    s1, s2, = XS2([((True, "W"), (False, "L")), ((False, "L"), (True, "W"))])
+    scores[0].data = tournament.blocks["xsumo"].ruleset.encode(s1)
+    scores[1].data = tournament.blocks["xsumo"].ruleset.encode(s2)
+    db.commit()
+
+    ranks = ranking(db)
+    assert [t.id for t,_ in ranks] == [1, 2, 3]
+    assert [i for i,_ in enumerate_rank(ranks, key=lambda x:x[1])] == [1, 2, 3]

@@ -152,6 +152,16 @@ class Score(Base):
     def has_score(self):
         return self.data != None
 
+class Tiebreak(Base):
+    __tablename__ = "tiebreaks"
+    __table_args__ = ( sa.PrimaryKeyConstraint("ranking_id", "team_id"), )
+
+    ranking_id = sa.Column(sa.String, nullable=False, index=True)
+    team_id = sa.Column(sa.Integer, sa.ForeignKey("teams.id", ondelete="CASCADE"), nullable=False)
+    weight = sa.Column(sa.Integer, default=0, server_default=sa.text("0"))
+
+    team = relationship("Team", viewonly=True)
+
 listen(Base.metadata, "after_create", sa.DDL("""
     CREATE TRIGGER t_insert_team_scores
     AFTER INSERT ON event_teams

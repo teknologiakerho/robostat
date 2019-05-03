@@ -1,5 +1,6 @@
 import robostat
-from robostat.tournament import aggregate_scores, sort_ranking, decode_block_scores
+from robostat.tournament import aggregate_scores, sort_ranking, decode_block_scores,\
+        tiebreak_ranking, combine_ranks
 from robostat.rulesets.xsumo import XSRuleset, XSumoScoreRank, XSumoWinsRank
 from robostat.rulesets.rescue import RescueRuleset, RescueMaxRank
 
@@ -41,6 +42,14 @@ def rank_xsumo_wins(db):
     scores = xsumo.decode_scores(db)
     ranks = aggregate_scores(scores, XSumoWinsRank.from_scores)
     return sort_ranking(ranks.items())
+
+@robostat.ranking("xsumo.tb", name="XSumo A (Pisteet+tiebreak)")
+def rank_xsumo_tb(db):
+    scores = xsumo.decode_scores(db)
+    ranks = aggregate_scores(scores, XSumoScoreRank.from_scores)
+    tiebreaks = tiebreak_ranking(db, "xsumo.tb")
+    combined = combine_ranks(ranks, tiebreaks)
+    return sort_ranking(combined.items())
 
 @robostat.ranking("rescue1", name="Rescue 1")
 def rank_rescue1(db):

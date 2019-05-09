@@ -254,6 +254,9 @@ class RescueRank:
 
     @property
     def other_scores(self):
+        if self.best is None:
+            return [None] * (len(self.all)-1)
+
         return [s for s in self.all if s is not self.best]
 
     @property
